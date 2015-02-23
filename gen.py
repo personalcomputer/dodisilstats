@@ -12,8 +12,10 @@ import re
 from nltk.stem.wordnet import WordNetLemmatizer
 import nltk
 
-cache_file_name = "cache.html"
 isil_pr_blog_url = 'http://www.defense.gov/home/features/2014/0814_iraq/Airstrikes6.html'
+cache_name = 'cache.html'
+
+database_name = 'airstrikes.db'
 
 units = {'zero': 0, #used for NLP
 'no': 0,
@@ -46,16 +48,16 @@ lemmatizer = WordNetLemmatizer()
 
 def get_isil_pr_liveblog():
   try:
-    cache_time = datetime.datetime.fromtimestamp(os.path.getmtime(cache_file_name))
+    cache_time = datetime.datetime.fromtimestamp(os.path.getmtime(cache_name))
     if (datetime.datetime.now() - cache_time).total_seconds()/(60*60) < 6: #cache fresh within 6 hours
-      return open(cache_file_name).read()
+      return open(cache_name).read()
   except OSError:
     pass
 
   r = requests.get(isil_pr_blog_url)
   html = r.text
 
-  cachefile = open(cache_file_name, 'w')
+  cachefile = open(cache_name, 'w')
   cachefile.write(html.encode('utf8'))
   cachefile.close()
 
@@ -70,14 +72,14 @@ def get_entries(html):
   return results
 
 
-class SentenceWithContext():
+class SentenceWithContext(object):
   def __init__(self, sentence, country, date_start, date_end):
     self.sentence = sentence
     self.country = country
     self.date_start = date_start
     self.date_end = date_end
 
-class AirStrike():
+class AirStrike(object):
   def __init__(self, dod_identification, status, country, near, date_start, date_end, debug_source):
     self.dod_identification = dod_identification
     self.status = status
@@ -167,7 +169,7 @@ def parse_target_sentence(sentence):
             break
 
           print(status+': '+str(number)+'x '+target)
-          airstrikes.extend(number*[AirStrike(target, sentence.country, 'unknown loc', status, sentence.date_start, sentence.date_end, stext)])
+          airstrikes.extend(number*[AirStrike(target, status, sentence.country, 'unknown loc', sentence.date_start, sentence.date_end, stext)])
           break
 
 
@@ -196,16 +198,19 @@ def split_sentences(sentences_text):
 nildate = datetime.datetime.now()
 
 def parse_entry(li):
+  li_tostring = lxml.html.tostring(li, method='html', encoding='unicode')
   entry_parsed = []
 
   targets_sentences = []
+
+  could_parse = False
 
   ###Parse Style 1
   #Test for sentence organization style 1
   style1_indicator = '''<p><strong>Syria</strong><br />
         <ul>
                   <li>- '''
-  if lxml.html.tostring(li, method='html', encoding='unicode').find(style1_indicator) != -1:
+  if li_tostring.find(style1_indicator) != -1:
     states_list = CSSSelector('ul')(li)
     syria_list = states_list[0]
     iraq_list = states_list[1]
@@ -218,10 +223,12 @@ def parse_entry(li):
     targets_sentences.extend([SentenceWithContext(s, 'Syria', nildate, nildate) for s in syria_targets_sentences])
     targets_sentences.extend([SentenceWithContext(s, 'Iraq',  nildate, nildate) for s in  iraq_targets_sentences])
 
+    could_parse = True
+
   ###Parse Style 2
   #Test for sentence organization style 2
   style2_indicator = '''<p>In Syria, '''
-  if lxml.html.tostring(li, method='html', encoding='unicode').find(style2_indicator) != -1:
+  if li_tostring.find(style2_indicator) != -1:
     syria_targets_sentences = []
     iraq_targets_sentences = []
 
@@ -236,6 +243,11 @@ def parse_entry(li):
     targets_sentences.extend([SentenceWithContext(s, 'Syria', nildate, nildate) for s in syria_targets_sentences])
     targets_sentences.extend([SentenceWithContext(s, 'Iraq',  nildate, nildate) for s in  iraq_targets_sentences])
 
+    could_parse = True
+
+  if not could_parse:
+    print('error, couldnt id org style for entry: \n'+li_tostring)
+
   targets_sentences = strip_invalid_sentences(targets_sentences)
 
   airstrikes = []
@@ -247,16 +259,29 @@ def parse_entry(li):
 def main():
   args = sys.argv
 
+  #Parse press releases
   airstrikes = []
 
   html = get_isil_pr_liveblog()
   for entry in get_entries(html):
     airstrikes.extend(parse_entry(entry))
 
-  conn = sqlite3.connect('airstrikes.db')
+
+  #Write to DB
+  #delete db (when it exists)
+  try:
+    os.remove(database_name)
+  except OSError:
+    pass
+
+  conn = sqlite3.connect(database_name)
   c = conn.cursor()
-  #  c.execute("INSERT INTO targets VALUES ('','','')")
-  #conn.commit()
+  c.execute('CREATE TABLE targets (dod_identification TEXT, status TEXT, country TEXT, near TEXT, date_start TEXT, date_end TEXT, source TEXT);')
+  conn.commit()
+
+  for airstrike in airstrikes:
+    c.execute("INSERT INTO targets VALUES (?,?,?,?,?,?,?)", (airstrike.dod_identification, airstrike.status, airstrike.country, airstrike.near, airstrike.date_start, airstrike.date_end, airstrike.debug_source))
+  conn.commit()
   conn.close()
 
 if __name__ == '__main__':
