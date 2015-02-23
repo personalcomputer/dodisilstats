@@ -5,7 +5,11 @@ Automatically generated visualizations of the DoD's anti-ISIL air campaign press
 ###Usage:
 
 Generate raw airstrike database from press releases:
-`./gen.py`
+```
+./gen.py
+````
 
-Generate graph of targets destroyed and damaged
-`cd vis; ./targets-graph.py targets-graph.png `
+Generate graph of targets destroyed and damaged:
+```
+cd vis; ./targets-graph.py targets-graph.png
+```
