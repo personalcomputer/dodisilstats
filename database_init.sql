@@ -1,1 +1,0 @@
-CREATE TABLE targets (date TEXT, country TEXT, dod_identification TEXT, near TEXT);

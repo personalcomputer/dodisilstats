@@ -259,7 +259,7 @@ def parse_entry(li):
 def main():
   args = sys.argv
 
-  #Parse press releases
+  #Get and parse press releases
   airstrikes = []
 
   html = get_isil_pr_liveblog()
@@ -276,7 +276,7 @@ def main():
 
   conn = sqlite3.connect(database_name)
   c = conn.cursor()
-  c.execute('CREATE TABLE targets (dod_identification TEXT, status TEXT, country TEXT, near TEXT, date_start TEXT, date_end TEXT, source TEXT);')
+  c.execute('CREATE TABLE targets (dod_identification TEXT, status TEXT, country TEXT, near TEXT, date_start TEXT, date_end TEXT, source TEXT)')
   conn.commit()
 
   for airstrike in airstrikes:
