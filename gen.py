@@ -17,7 +17,7 @@ cache_name = 'cache.html'
 
 database_name = 'airstrikes.db'
 
-units = {'zero': 0, #used for NLP
+units = {'zero': 0, #used for NLP #cardinal numbers or (some) determiners
 'no': 0,
 'one': 1,
 'another': 1,
@@ -207,10 +207,8 @@ def parse_entry(li):
 
   ###Parse Style 1
   #Test for sentence organization style 1
-  style1_indicator = '''<p><strong>Syria</strong><br />
-        <ul>
-                  <li>- '''
-  if li_tostring.find(style1_indicator) != -1:
+  style1_indicator = '''<p><strong>Syria</strong><br.?.?>\s*(</p>\s*)?<ul>\s*<li>-'''
+  if re.search(style1_indicator, li_tostring) != None:
     states_list = CSSSelector('ul')(li)
     syria_list = states_list[0]
     iraq_list = states_list[1]
@@ -246,7 +244,16 @@ def parse_entry(li):
     could_parse = True
 
   if not could_parse:
-    print('error, couldnt id org style for entry: \n'+li_tostring)
+    date_note = ''
+    try:
+      date_element = CSSSelector('.date')(li)[0]
+      date = lxml.html.tostring(date_element, method='text', encoding='unicode').strip()
+      if date == 'Operational Summary:':
+        raise Exception()
+      date_note = ' dated '+date
+    except:
+      pass
+    print('FAILED TO PARSE: 1 journal entry'+date_note+'. (could not identify as any known journal entry organization style)')# \n'+li_tostring)
 
   targets_sentences = strip_invalid_sentences(targets_sentences)
 
